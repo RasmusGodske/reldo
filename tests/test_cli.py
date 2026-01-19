@@ -34,7 +34,7 @@ class TestCreateParser:
     def test_parser_has_review_subcommand(self) -> None:
         """Test that parser has review subcommand."""
         parser = create_parser()
-        args = parser.parse_args(["review", "--prompt", "Test"])
+        args = parser.parse_args(["review", "Test"])
         assert args.command == "review"
         assert args.prompt == "Test"
 
@@ -43,7 +43,7 @@ class TestCreateParser:
         parser = create_parser()
         args = parser.parse_args([
             "review",
-            "--prompt", "Test",
+            "Test",
             "--config", "custom.json",
             "--cwd", "/tmp",
             "--json",
@@ -61,10 +61,10 @@ class TestCreateParser:
         assert args.exit_code is True
 
     def test_review_default_config(self) -> None:
-        """Test that config has default value."""
+        """Test that config default is None (uses sensible defaults)."""
         parser = create_parser()
-        args = parser.parse_args(["review", "--prompt", "Test"])
-        assert args.config == ".claude/reldo.json"
+        args = parser.parse_args(["review", "Test"])
+        assert args.config is None
 
 
 class TestReadPrompt:
@@ -110,10 +110,14 @@ class TestLoadConfig:
             config = load_config(".claude/reldo.json", tmpdir)
             assert config.prompt == "Relative config"
 
-    def test_load_config_not_found_raises(self) -> None:
-        """Test that missing config raises FileNotFoundError."""
-        with pytest.raises(FileNotFoundError, match="Config file not found"):
-            load_config("/nonexistent/config.json", None)
+    def test_load_config_missing_uses_defaults(self) -> None:
+        """Test that missing config uses sensible defaults."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = load_config(None, tmpdir)
+            # Should return a valid config with defaults
+            assert config.prompt is not None
+            assert config.allowed_tools is not None
+            assert config.cwd == Path(tmpdir)
 
     def test_load_config_with_cwd_override(self) -> None:
         """Test that cwd override works."""
@@ -210,11 +214,11 @@ class TestRunReview:
     """Tests for run_review function."""
 
     @pytest.mark.asyncio
-    async def test_run_review_config_not_found(self) -> None:
-        """Test that missing config returns error."""
+    async def test_run_review_explicit_config_not_found(self) -> None:
+        """Test that explicitly specified missing config returns error."""
         args = MagicMock()
         args.prompt = "Test"
-        args.config = "/nonexistent.json"
+        args.config = "/nonexistent.json"  # Explicit path that doesn't exist
         args.cwd = None
         args.json_output = False
         args.verbose = False
@@ -223,6 +227,30 @@ class TestRunReview:
 
         exit_code = await run_review(args)
         assert exit_code == 1
+
+    @pytest.mark.asyncio
+    async def test_run_review_no_config_uses_defaults(self) -> None:
+        """Test that no config uses sensible defaults."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            args = MagicMock()
+            args.prompt = "Review this"
+            args.config = None  # No explicit config
+            args.cwd = tmpdir
+            args.json_output = False
+            args.verbose = False
+            args.no_log = True
+            args.exit_code = False
+
+            mock_result = ReviewResult(text="STATUS: PASS\nAll good")
+
+            with patch("reldo.cli.Reldo") as MockReldo:
+                mock_instance = MagicMock()
+                mock_instance.review = AsyncMock(return_value=mock_result)
+                MockReldo.return_value = mock_instance
+
+                exit_code = await run_review(args)
+
+            assert exit_code == 0
 
     @pytest.mark.asyncio
     async def test_run_review_success(self) -> None:
@@ -292,7 +320,7 @@ class TestCLIHelp:
             parser.parse_args(["review", "--help"])
 
         captured = capsys.readouterr()
-        assert "--prompt" in captured.out
+        assert "PROMPT" in captured.out  # Positional argument
         assert "--config" in captured.out
         assert "--json" in captured.out
         assert "--verbose" in captured.out
