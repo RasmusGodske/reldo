@@ -1,7 +1,7 @@
 """
 Reldo - Claude-powered code review orchestrator.
 
-"The librarian has reviewed your code."
+""The librarian has reviewed your code." - v0.2.0"
 
 Example:
     ```python
