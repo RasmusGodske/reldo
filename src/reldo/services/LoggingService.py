@@ -139,35 +139,111 @@ class LoggingService:
             encoding="utf-8"
         )
 
+    def _format_block(self, block: Any) -> str:
+        """Format a single content block for logging.
+
+        Args:
+            block: A content block (text, tool_use, tool_result, etc.)
+
+        Returns:
+            Formatted string representation.
+        """
+        # Text block
+        if hasattr(block, "text"):
+            return f"[THOUGHT]\n{block.text}"
+
+        # Tool use block
+        if hasattr(block, "name") and hasattr(block, "input"):
+            tool_name = getattr(block, "name", "unknown")
+            tool_input = getattr(block, "input", {})
+            tool_id = getattr(block, "id", "")
+            # Format input nicely
+            if isinstance(tool_input, dict):
+                input_str = json.dumps(tool_input, indent=2, default=str)
+            else:
+                input_str = str(tool_input)
+            return f"[TOOL_CALL] {tool_name} (id: {tool_id})\n{input_str}"
+
+        # Tool result block
+        if hasattr(block, "tool_use_id"):
+            tool_id = getattr(block, "tool_use_id", "")
+            content = getattr(block, "content", "")
+            # Content might be a list or string
+            if isinstance(content, list):
+                content_str = "\n".join(
+                    getattr(c, "text", str(c)) for c in content
+                )
+            else:
+                content_str = str(content)
+            # Truncate very long results
+            if len(content_str) > 2000:
+                content_str = content_str[:2000] + "\n... [truncated]"
+            return f"[TOOL_RESULT] (id: {tool_id})\n{content_str}"
+
+        # Fallback: convert to string
+        return f"[BLOCK] {type(block).__name__}\n{block!s}"
+
     def save_transcript(self, session_id: str, messages: list[Any]) -> None:
-        """Save the full transcript (verbose mode only).
+        """Save the full transcript with tool calls and thoughts.
 
         Only saves if verbose mode is enabled.
 
         Args:
             session_id: The session to save to.
-            messages: The transcript messages.
+            messages: The transcript messages from the SDK.
         """
         if not self._verbose:
             return
 
         session_dir = self._get_session_dir(session_id)
 
-        # Format messages for logging
         lines: list[str] = []
+        lines.append("=" * 60)
+        lines.append("RELDO SESSION TRANSCRIPT")
+        lines.append("=" * 60)
+        lines.append("")
+
         for i, msg in enumerate(messages):
-            lines.append(f"=== Message {i + 1} ===")
-            if hasattr(msg, "content"):
-                # Handle message objects with content
-                for block in getattr(msg, "content", []):
-                    if hasattr(block, "text"):
-                        lines.append(block.text)
-                    else:
-                        lines.append(str(block))
+            # Determine message type/role
+            role = getattr(msg, "role", None)
+            msg_type = type(msg).__name__
+
+            lines.append(f"{'=' * 40}")
+            if role:
+                lines.append(f"MESSAGE {i + 1} [{role.upper()}]")
             else:
-                # Handle other message types
+                lines.append(f"MESSAGE {i + 1} [{msg_type}]")
+            lines.append(f"{'=' * 40}")
+
+            # Handle messages with content blocks
+            if hasattr(msg, "content"):
+                content = getattr(msg, "content", [])
+                if isinstance(content, list):
+                    for block in content:
+                        lines.append(self._format_block(block))
+                        lines.append("")
+                else:
+                    lines.append(str(content))
+                    lines.append("")
+
+            # Handle ResultMessage (final message with usage stats)
+            elif hasattr(msg, "session_id") and hasattr(msg, "usage"):
+                lines.append("[RESULT]")
+                if hasattr(msg, "result") and msg.result:
+                    lines.append(msg.result)
+                usage = getattr(msg, "usage", {})
+                if usage:
+                    lines.append(f"\n[USAGE] {json.dumps(usage, indent=2)}")
+                lines.append("")
+
+            # Fallback
+            else:
                 lines.append(str(msg))
-            lines.append("")
+                lines.append("")
+
+        lines.append("=" * 60)
+        lines.append("END OF TRANSCRIPT")
+        lines.append("=" * 60)
 
         # Save transcript.log
         transcript_file = session_dir / "transcript.log"
