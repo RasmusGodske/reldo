@@ -1,7 +1,7 @@
 """
 Reldo - Claude-powered code review orchestrator.
 
-""The librarian has reviewed your code." - v0.2.0"
+"The librarian has reviewed your code."
 
 Example:
     ```python
@@ -16,7 +16,7 @@ Example:
     ```
 """
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 from .models.ReviewConfig import ReviewConfig
 from .models.ReviewResult import ReviewResult
