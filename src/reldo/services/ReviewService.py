@@ -176,4 +176,14 @@ class ReviewService:
             self._logging_service.save_result(session_id, result)
             self._logging_service.save_transcript(session_id, all_messages)
 
+            # Save reference to SDK's transcript JSONL
+            if result_message and hasattr(result_message, "session_id"):
+                sdk_session_id = result_message.session_id
+                if sdk_session_id:
+                    self._logging_service.save_sdk_transcript_reference(
+                        session_id=session_id,
+                        sdk_session_id=sdk_session_id,
+                        cwd=str(self._get_cwd()),
+                    )
+
         return result

@@ -111,6 +111,54 @@ class LoggingService:
             raise ValueError(f"Unknown session: {session_id}")
         return self._sessions[session_id]
 
+    def _get_sdk_transcript_path(self, sdk_session_id: str, cwd: str) -> str:
+        """Build the path to the SDK's JSONL transcript file.
+
+        The SDK stores transcripts at:
+        ~/.claude/projects/{project-path-hash}/{session_id}.jsonl
+
+        Args:
+            sdk_session_id: The session ID from the SDK's ResultMessage.
+            cwd: The working directory used for the session.
+
+        Returns:
+            Path to the SDK's JSONL transcript file.
+        """
+        # Convert cwd to project hash (slashes become dashes)
+        project_hash = cwd.replace("/", "-")
+        if project_hash.startswith("-"):
+            project_hash = project_hash  # Keep leading dash
+
+        claude_dir = Path.home() / ".claude" / "projects" / project_hash
+        return str(claude_dir / f"{sdk_session_id}.jsonl")
+
+    def save_sdk_transcript_reference(
+        self, session_id: str, sdk_session_id: str, cwd: str
+    ) -> None:
+        """Update session.json with a reference to the SDK's transcript.
+
+        Args:
+            session_id: The reldo session ID.
+            sdk_session_id: The session ID from the SDK's ResultMessage.
+            cwd: The working directory used for the session.
+        """
+        session_dir = self._get_session_dir(session_id)
+        session_file = session_dir / "session.json"
+
+        # Read existing session.json
+        session_data = json.loads(session_file.read_text(encoding="utf-8"))
+
+        # Add SDK transcript reference
+        sdk_transcript_path = self._get_sdk_transcript_path(sdk_session_id, cwd)
+        session_data["sdk_session_id"] = sdk_session_id
+        session_data["sdk_transcript_path"] = sdk_transcript_path
+
+        # Write updated session.json
+        session_file.write_text(
+            json.dumps(session_data, indent=2, default=str),
+            encoding="utf-8"
+        )
+
     def save_result(self, session_id: str, result: ReviewResult) -> None:
         """Save the review result.
 
