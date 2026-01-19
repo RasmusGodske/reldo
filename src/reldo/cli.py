@@ -7,7 +7,13 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .defaults import DEFAULT_CONFIG_PATH, DEFAULT_ORCHESTRATOR_PATH, DEFAULT_ORCHESTRATOR_PROMPT
+from .defaults import (
+    DEFAULT_CONFIG,
+    DEFAULT_CONFIG_PATH,
+    DEFAULT_GITIGNORE,
+    DEFAULT_ORCHESTRATOR_PATH,
+    DEFAULT_ORCHESTRATOR_PROMPT,
+)
 from .models.ReviewConfig import ReviewConfig
 from .models.ReviewResult import ReviewResult
 from .reldo import Reldo
@@ -73,6 +79,17 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="exit_code",
         help="Exit with code 1 if review fails (for CI)",
+    )
+
+    # init command
+    init_parser = subparsers.add_parser(
+        "init",
+        help="Initialize a new .reldo directory with default configuration",
+    )
+    init_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing files",
     )
 
     return parser
@@ -302,6 +319,62 @@ def _print_error(message: str, as_json: bool) -> None:
         print(f"Error: {message}", file=sys.stderr)
 
 
+def run_init(args: argparse.Namespace) -> int:
+    """Initialize a new .reldo directory with default configuration.
+
+    Args:
+        args: Parsed command-line arguments.
+
+    Returns:
+        Exit code (0 for success, 1 for failure).
+    """
+    cwd = Path.cwd()
+    reldo_dir = cwd / ".reldo"
+    settings_file = reldo_dir / "settings.json"
+    orchestrator_file = reldo_dir / "orchestrator.md"
+    gitignore_file = reldo_dir / ".gitignore"
+    sessions_dir = reldo_dir / "sessions"
+    agents_dir = reldo_dir / "agents"
+
+    # Check if already exists
+    if reldo_dir.exists() and not args.force:
+        print(f"Error: {reldo_dir} already exists. Use --force to overwrite.")
+        return 1
+
+    try:
+        # Create directories
+        reldo_dir.mkdir(exist_ok=True)
+        sessions_dir.mkdir(exist_ok=True)
+        agents_dir.mkdir(exist_ok=True)
+
+        # Write settings.json
+        settings_file.write_text(
+            json.dumps(DEFAULT_CONFIG, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        print(f"Created {settings_file}")
+
+        # Write orchestrator.md
+        orchestrator_file.write_text(DEFAULT_ORCHESTRATOR_PROMPT, encoding="utf-8")
+        print(f"Created {orchestrator_file}")
+
+        # Write .gitignore
+        gitignore_file.write_text(DEFAULT_GITIGNORE, encoding="utf-8")
+        print(f"Created {gitignore_file}")
+
+        print(f"\nInitialized reldo in {reldo_dir}")
+        print("\nNext steps:")
+        print("  1. Customize .reldo/orchestrator.md with your review guidelines")
+        print("  2. Add agent prompts to .reldo/agents/ if needed")
+        print("  3. Run: reldo review \"Review my changes\"")
+
+        return 0
+
+    except OSError as e:
+        print(f"Error: Failed to create files: {e}", file=sys.stderr)
+        return 1
+
+
 def main() -> int:
     """Main entry point for the CLI.
 
@@ -317,6 +390,9 @@ def main() -> int:
 
     if args.command == "review":
         return asyncio.run(run_review(args))
+
+    if args.command == "init":
+        return run_init(args)
 
     return 0
 

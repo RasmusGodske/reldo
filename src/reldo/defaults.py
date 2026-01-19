@@ -37,9 +37,9 @@ STATUS: PASS|FAIL
 Be concise and actionable. Focus on real problems, not style nitpicks.
 """
 
-# Default configuration values
+# Default configuration values (for init command)
 DEFAULT_CONFIG = {
-    "prompt": None,  # Will use DEFAULT_ORCHESTRATOR_PROMPT if not set
+    "prompt": ".reldo/orchestrator.md",
     "allowed_tools": ["Read", "Glob", "Grep", "Bash", "Task"],
     "mcp_servers": {},
     "agents": {},
@@ -51,6 +51,11 @@ DEFAULT_CONFIG = {
         "verbose": False,
     },
 }
+
+# Default .gitignore content for .reldo directory
+DEFAULT_GITIGNORE = """# Reldo session logs (auto-generated)
+sessions/
+"""
 
 # Default config file path
 DEFAULT_CONFIG_PATH = ".reldo/settings.json"

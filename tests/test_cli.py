@@ -17,6 +17,7 @@ from reldo.cli import (
     check_review_passed,
     main,
     run_review,
+    run_init,
 )
 from reldo.models import ReviewConfig, ReviewResult
 
@@ -326,3 +327,104 @@ class TestCLIHelp:
         assert "--verbose" in captured.out
         assert "--no-log" in captured.out
         assert "--exit-code" in captured.out
+
+
+class TestRunInit:
+    """Tests for run_init function."""
+
+    def test_init_creates_directory_structure(self) -> None:
+        """Test that init creates .reldo directory structure."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            original_cwd = Path.cwd()
+            try:
+                import os
+                os.chdir(tmpdir)
+
+                args = MagicMock()
+                args.force = False
+
+                exit_code = run_init(args)
+
+                assert exit_code == 0
+                assert (Path(tmpdir) / ".reldo").exists()
+                assert (Path(tmpdir) / ".reldo" / "settings.json").exists()
+                assert (Path(tmpdir) / ".reldo" / "orchestrator.md").exists()
+                assert (Path(tmpdir) / ".reldo" / ".gitignore").exists()
+                assert (Path(tmpdir) / ".reldo" / "sessions").exists()
+                assert (Path(tmpdir) / ".reldo" / "agents").exists()
+            finally:
+                os.chdir(original_cwd)
+
+    def test_init_settings_contains_config(self) -> None:
+        """Test that settings.json contains valid config."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            original_cwd = Path.cwd()
+            try:
+                import os
+                os.chdir(tmpdir)
+
+                args = MagicMock()
+                args.force = False
+
+                run_init(args)
+
+                settings_path = Path(tmpdir) / ".reldo" / "settings.json"
+                config = json.loads(settings_path.read_text(encoding="utf-8"))
+                assert config["prompt"] == ".reldo/orchestrator.md"
+                assert "allowed_tools" in config
+                assert "model" in config
+            finally:
+                os.chdir(original_cwd)
+
+    def test_init_fails_if_exists_without_force(self) -> None:
+        """Test that init fails if .reldo exists without --force."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            original_cwd = Path.cwd()
+            try:
+                import os
+                os.chdir(tmpdir)
+
+                # Create existing .reldo directory
+                (Path(tmpdir) / ".reldo").mkdir()
+
+                args = MagicMock()
+                args.force = False
+
+                exit_code = run_init(args)
+                assert exit_code == 1
+            finally:
+                os.chdir(original_cwd)
+
+    def test_init_succeeds_with_force(self) -> None:
+        """Test that init succeeds with --force even if .reldo exists."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            original_cwd = Path.cwd()
+            try:
+                import os
+                os.chdir(tmpdir)
+
+                # Create existing .reldo directory
+                (Path(tmpdir) / ".reldo").mkdir()
+
+                args = MagicMock()
+                args.force = True
+
+                exit_code = run_init(args)
+                assert exit_code == 0
+                assert (Path(tmpdir) / ".reldo" / "settings.json").exists()
+            finally:
+                os.chdir(original_cwd)
+
+    def test_parser_has_init_subcommand(self) -> None:
+        """Test that parser has init subcommand."""
+        parser = create_parser()
+        args = parser.parse_args(["init"])
+        assert args.command == "init"
+        assert args.force is False
+
+    def test_parser_init_with_force(self) -> None:
+        """Test that init command accepts --force flag."""
+        parser = create_parser()
+        args = parser.parse_args(["init", "--force"])
+        assert args.command == "init"
+        assert args.force is True
