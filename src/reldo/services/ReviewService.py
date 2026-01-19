@@ -5,15 +5,12 @@ from pathlib import Path
 from typing import Any
 
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
+from claude_agent_sdk.types import AgentDefinition
 
 from ..models.ReviewConfig import ReviewConfig
 from ..models.ReviewResult import ReviewResult
 from .LoggingService import LoggingService
 from .PromptService import PromptService
-
-
-# Type alias for agent definitions expected by the SDK
-AgentDefinition = dict[str, Any]
 
 
 class ReviewService:
@@ -69,7 +66,7 @@ class ReviewService:
         """Load agent definitions from config, resolving prompt file paths.
 
         Transforms reldo's agent config (with file paths) into SDK-compatible
-        AgentDefinition format (with actual prompt content).
+        AgentDefinition dataclass instances (with actual prompt content).
 
         Returns:
             Dictionary of agent definitions, or None if no agents configured.
@@ -85,17 +82,13 @@ class ReviewService:
             prompt_path = agent_config.get("prompt", "")
             prompt_content = self._prompt_service.load(prompt_path, cwd)
 
-            # Build SDK-compatible agent definition
-            agent_def: AgentDefinition = {
-                "description": agent_config.get("description", ""),
-                "prompt": prompt_content,
-            }
-
-            # Pass through optional fields if present
-            if "tools" in agent_config:
-                agent_def["tools"] = agent_config["tools"]
-            if "model" in agent_config:
-                agent_def["model"] = agent_config["model"]
+            # Build SDK-compatible AgentDefinition dataclass instance
+            agent_def = AgentDefinition(
+                description=agent_config.get("description", ""),
+                prompt=prompt_content,
+                tools=agent_config.get("tools"),
+                model=agent_config.get("model"),
+            )
 
             agents[agent_name] = agent_def
 
@@ -126,7 +119,7 @@ class ReviewService:
             system_prompt=system_prompt,
             allowed_tools=self._config.allowed_tools,
             mcp_servers=self._config.mcp_servers,
-            agents=agents,  # type: ignore[arg-type]
+            agents=agents,
             cwd=str(self._get_cwd()),
             model=self._config.model if self._config.model else None,
             max_turns=self._config.timeout_seconds // 10 if self._config.timeout_seconds else None,
