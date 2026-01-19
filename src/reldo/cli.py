@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .defaults import DEFAULT_CONFIG_PATH, DEFAULT_ORCHESTRATOR_PATH, DEFAULT_ORCHESTRATOR_PROMPT
 from .models.ReviewConfig import ReviewConfig
 from .models.ReviewResult import ReviewResult
 from .reldo import Reldo
@@ -43,8 +44,8 @@ def create_parser() -> argparse.ArgumentParser:
     )
     review_parser.add_argument(
         "--config",
-        default=".claude/reldo.json",
-        help="Path to config file (default: .claude/reldo.json)",
+        default=None,
+        help=f"Path to config file (default: {DEFAULT_CONFIG_PATH})",
     )
     review_parser.add_argument(
         "--cwd",
@@ -91,33 +92,35 @@ def read_prompt(prompt_arg: str) -> str:
     return prompt_arg
 
 
-def load_config(config_path: str, cwd: str | None) -> ReviewConfig:
-    """Load configuration from file.
+def load_config(config_path: str | None, cwd: str | None) -> ReviewConfig:
+    """Load configuration from file or use defaults.
 
     Args:
-        config_path: Path to config file.
+        config_path: Path to config file, or None to use default.
         cwd: Optional working directory override.
 
     Returns:
         ReviewConfig instance.
 
     Raises:
-        FileNotFoundError: If config file doesn't exist.
-        json.JSONDecodeError: If config isn't valid JSON.
+        json.JSONDecodeError: If config file exists but isn't valid JSON.
     """
-    path = Path(config_path)
+    working_dir = Path(cwd) if cwd else Path.cwd()
 
-    # If path is relative and doesn't exist, try from cwd
-    if not path.is_absolute() and not path.exists():
-        if cwd:
-            path = Path(cwd) / config_path
-        else:
-            path = Path.cwd() / config_path
+    # Determine config file path
+    if config_path:
+        path = Path(config_path)
+        if not path.is_absolute():
+            path = working_dir / config_path
+    else:
+        path = working_dir / DEFAULT_CONFIG_PATH
 
-    if not path.exists():
-        raise FileNotFoundError(f"Config file not found: {config_path}")
-
-    config = ReviewConfig.from_file(path)
+    # Try to load config file if it exists
+    if path.exists():
+        config = ReviewConfig.from_file(path)
+    else:
+        # No config file - use defaults
+        config = _create_default_config(working_dir)
 
     # Override cwd if provided
     if cwd:
@@ -127,13 +130,49 @@ def load_config(config_path: str, cwd: str | None) -> ReviewConfig:
             mcp_servers=config.mcp_servers,
             agents=config.agents,
             output_schema=config.output_schema,
-            cwd=Path(cwd),
+            cwd=working_dir,
             timeout_seconds=config.timeout_seconds,
             model=config.model,
             logging=config.logging,
         )
 
     return config
+
+
+def _create_default_config(working_dir: Path) -> ReviewConfig:
+    """Create a default configuration.
+
+    Checks for orchestrator.md file, falls back to embedded default.
+
+    Args:
+        working_dir: The working directory.
+
+    Returns:
+        ReviewConfig with sensible defaults.
+    """
+    # Check if orchestrator.md exists in .reldo/
+    orchestrator_path = working_dir / DEFAULT_ORCHESTRATOR_PATH
+    if orchestrator_path.exists():
+        prompt = DEFAULT_ORCHESTRATOR_PATH
+    else:
+        # Use embedded default prompt
+        prompt = DEFAULT_ORCHESTRATOR_PROMPT
+
+    return ReviewConfig(
+        prompt=prompt,
+        allowed_tools=["Read", "Glob", "Grep", "Bash", "Task"],
+        mcp_servers={},
+        agents={},
+        output_schema=None,
+        cwd=working_dir,
+        timeout_seconds=180,
+        model="claude-sonnet-4-20250514",
+        logging={
+            "enabled": True,
+            "output_dir": ".reldo/sessions",
+            "verbose": False,
+        },
+    )
 
 
 def format_result(result: ReviewResult, as_json: bool) -> str:
