@@ -31,10 +31,14 @@ def create_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # review command
-    review_parser = subparsers.add_parser("review", help="Run a code review")
+    review_parser = subparsers.add_parser(
+        "review",
+        help="Run a code review",
+        usage="%(prog)s PROMPT [options]",
+    )
     review_parser.add_argument(
-        "--prompt",
-        required=True,
+        "prompt",
+        metavar="PROMPT",
         help="Review prompt (use '-' for stdin)",
     )
     review_parser.add_argument(
