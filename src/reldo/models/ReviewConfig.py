@@ -28,14 +28,22 @@ class ReviewConfig:
     """
 
     prompt: str
-    allowed_tools: list[str] = field(default_factory=lambda: ["Read", "Glob", "Grep", "Bash", "Task"])
+    allowed_tools: list[str] = field(
+        default_factory=lambda: ["Read", "Glob", "Grep", "Bash", "Task"]
+    )
     mcp_servers: dict[str, Any] = field(default_factory=dict)
     agents: dict[str, dict[str, Any]] = field(default_factory=dict)
     output_schema: dict[str, Any] | None = None
     cwd: Path | str = field(default_factory=Path.cwd)
     timeout_seconds: int = 180
     model: str = "claude-sonnet-4-20250514"
-    logging: dict[str, Any] = field(default_factory=lambda: {"enabled": True, "output_dir": ".reldo/sessions", "verbose": False})
+    logging: dict[str, Any] = field(
+        default_factory=lambda: {
+            "enabled": True,
+            "output_dir": ".reldo/sessions",
+            "verbose": False,
+        }
+    )
 
     @classmethod
     def from_file(cls, path: Path | str) -> "ReviewConfig":

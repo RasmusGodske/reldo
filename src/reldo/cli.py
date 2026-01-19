@@ -4,9 +4,7 @@ import argparse
 import asyncio
 import json
 import sys
-from dataclasses import asdict
 from pathlib import Path
-from typing import Any
 
 from .models.ReviewConfig import ReviewConfig
 from .models.ReviewResult import ReviewResult
@@ -235,19 +233,29 @@ async def run_review(args: argparse.Namespace) -> int:
         return 0
 
     except FileNotFoundError as e:
-        error_output = {"error": str(e)} if args.json_output else f"Error: {e}"
-        print(error_output if isinstance(error_output, str) else json.dumps(error_output), file=sys.stderr)
+        _print_error(str(e), args.json_output)
         return 1
 
     except json.JSONDecodeError as e:
-        error_output = {"error": f"Invalid JSON in config: {e}"} if args.json_output else f"Error: Invalid JSON in config: {e}"
-        print(error_output if isinstance(error_output, str) else json.dumps(error_output), file=sys.stderr)
+        _print_error(f"Invalid JSON in config: {e}", args.json_output)
         return 1
 
     except Exception as e:
-        error_output = {"error": str(e)} if args.json_output else f"Error: {e}"
-        print(error_output if isinstance(error_output, str) else json.dumps(error_output), file=sys.stderr)
+        _print_error(str(e), args.json_output)
         return 1
+
+
+def _print_error(message: str, as_json: bool) -> None:
+    """Print an error message to stderr.
+
+    Args:
+        message: The error message.
+        as_json: Whether to output as JSON.
+    """
+    if as_json:
+        print(json.dumps({"error": message}), file=sys.stderr)
+    else:
+        print(f"Error: {message}", file=sys.stderr)
 
 
 def main() -> int:

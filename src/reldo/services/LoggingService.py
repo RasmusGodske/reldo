@@ -2,7 +2,6 @@
 
 import json
 import uuid
-from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any

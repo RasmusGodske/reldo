@@ -18,10 +18,10 @@ Example:
 
 __version__ = "0.1.0"
 
-from .reldo import Reldo
 from .models.ReviewConfig import ReviewConfig
 from .models.ReviewResult import ReviewResult
 from .models.ReviewSession import ReviewSession
+from .reldo import Reldo
 
 # Re-export HookMatcher from SDK for programmatic hook usage
 # Will be enabled when claude-code-sdk is installed
