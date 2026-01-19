@@ -12,6 +12,10 @@ from .LoggingService import LoggingService
 from .PromptService import PromptService
 
 
+# Type alias for agent definitions expected by the SDK
+AgentDefinition = dict[str, Any]
+
+
 class ReviewService:
     """Orchestrates code reviews using the Claude Agent SDK.
 
@@ -61,6 +65,42 @@ class ReviewService:
         """
         return self._prompt_service.load(self._config.prompt, self._get_cwd())
 
+    def _load_agents(self) -> dict[str, AgentDefinition] | None:
+        """Load agent definitions from config, resolving prompt file paths.
+
+        Transforms reldo's agent config (with file paths) into SDK-compatible
+        AgentDefinition format (with actual prompt content).
+
+        Returns:
+            Dictionary of agent definitions, or None if no agents configured.
+        """
+        if not self._config.agents:
+            return None
+
+        agents: dict[str, AgentDefinition] = {}
+        cwd = self._get_cwd()
+
+        for agent_name, agent_config in self._config.agents.items():
+            # Load prompt content from file path
+            prompt_path = agent_config.get("prompt", "")
+            prompt_content = self._prompt_service.load(prompt_path, cwd)
+
+            # Build SDK-compatible agent definition
+            agent_def: AgentDefinition = {
+                "description": agent_config.get("description", ""),
+                "prompt": prompt_content,
+            }
+
+            # Pass through optional fields if present
+            if "tools" in agent_config:
+                agent_def["tools"] = agent_config["tools"]
+            if "model" in agent_config:
+                agent_def["model"] = agent_config["model"]
+
+            agents[agent_name] = agent_def
+
+        return agents if agents else None
+
     def _build_agent_options(self) -> ClaudeCodeOptions:
         """Build ClaudeCodeOptions from config.
 
@@ -68,6 +108,7 @@ class ReviewService:
         - prompt → system_prompt
         - allowed_tools → allowed_tools
         - mcp_servers → mcp_servers
+        - agents → agents (with prompt files loaded)
         - cwd → cwd
         - model → model
         - hooks → hooks
@@ -75,18 +116,17 @@ class ReviewService:
         Note: The output_schema is NOT passed here - it would need
         to be handled differently in the SDK (currently not directly supported).
 
-        Note: Agents are not directly passed to SDK. They need to be
-        defined in project settings for the Task tool to access them.
-
         Returns:
             ClaudeCodeOptions instance configured from self._config.
         """
         system_prompt = self._load_orchestrator_prompt()
+        agents = self._load_agents()
 
         options = ClaudeCodeOptions(
             system_prompt=system_prompt,
             allowed_tools=self._config.allowed_tools,
             mcp_servers=self._config.mcp_servers,
+            agents=agents,  # type: ignore[arg-type]
             cwd=str(self._get_cwd()),
             model=self._config.model if self._config.model else None,
             max_turns=self._config.timeout_seconds // 10 if self._config.timeout_seconds else None,
