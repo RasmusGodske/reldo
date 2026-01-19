@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from claude_code_sdk import ClaudeCodeOptions, ResultMessage, query
+from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 
 from ..models.ReviewConfig import ReviewConfig
 from ..models.ReviewResult import ReviewResult
@@ -20,7 +20,7 @@ class ReviewService:
     """Orchestrates code reviews using the Claude Agent SDK.
 
     This is the core service that:
-    - Builds ClaudeCodeOptions from ReviewConfig
+    - Builds ClaudeAgentOptions from ReviewConfig
     - Loads orchestrator and agent prompts
     - Calls the SDK's query() function
     - Collects results and builds ReviewResult
@@ -101,8 +101,8 @@ class ReviewService:
 
         return agents if agents else None
 
-    def _build_agent_options(self) -> ClaudeCodeOptions:
-        """Build ClaudeCodeOptions from config.
+    def _build_agent_options(self) -> ClaudeAgentOptions:
+        """Build ClaudeAgentOptions from config.
 
         Maps ReviewConfig properties to SDK options:
         - prompt → system_prompt
@@ -117,12 +117,12 @@ class ReviewService:
         to be handled differently in the SDK (currently not directly supported).
 
         Returns:
-            ClaudeCodeOptions instance configured from self._config.
+            ClaudeAgentOptions instance configured from self._config.
         """
         system_prompt = self._load_orchestrator_prompt()
         agents = self._load_agents()
 
-        options = ClaudeCodeOptions(
+        options = ClaudeAgentOptions(
             system_prompt=system_prompt,
             allowed_tools=self._config.allowed_tools,
             mcp_servers=self._config.mcp_servers,

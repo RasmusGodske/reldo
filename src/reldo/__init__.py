@@ -24,9 +24,9 @@ from .models.ReviewSession import ReviewSession
 from .reldo import Reldo
 
 # Re-export HookMatcher from SDK for programmatic hook usage
-# Will be enabled when claude-code-sdk is installed
+# Will be enabled when claude-agent-sdk is installed
 try:
-    from claude_code_sdk import HookMatcher
+    from claude_agent_sdk import HookMatcher
 except ImportError:
     HookMatcher = None  # type: ignore[misc, assignment]
 
