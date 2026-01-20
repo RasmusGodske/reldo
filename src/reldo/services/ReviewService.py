@@ -130,7 +130,9 @@ class ReviewService:
             "setting_sources": setting_sources,
             "cwd": str(self._get_cwd()),
             "model": self._config.model if self._config.model else None,
-            "max_turns": self._config.timeout_seconds // 10 if self._config.timeout_seconds else None,
+            "max_turns": (
+                self._config.timeout_seconds // 10 if self._config.timeout_seconds else None
+            ),
             "hooks": self._hooks,
             "permission_mode": "bypassPermissions",  # Allow all tools in review context
         }
@@ -139,7 +141,7 @@ class ReviewService:
         if agents:
             options_kwargs["agents"] = agents
 
-        options = ClaudeAgentOptions(**options_kwargs)  # type: ignore[arg-type]
+        options = ClaudeAgentOptions(**options_kwargs)
 
         return options
 
