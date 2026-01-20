@@ -122,18 +122,24 @@ class ReviewService:
         if setting_sources is None:
             setting_sources = DEFAULT_SETTING_SOURCES
 
-        options = ClaudeAgentOptions(
-            system_prompt=system_prompt,
-            allowed_tools=self._config.allowed_tools,
-            mcp_servers=self._config.mcp_servers,
-            setting_sources=setting_sources,  # type: ignore[arg-type]
-            agents=agents,
-            cwd=str(self._get_cwd()),
-            model=self._config.model if self._config.model else None,
-            max_turns=self._config.timeout_seconds // 10 if self._config.timeout_seconds else None,
-            hooks=self._hooks,  # type: ignore[arg-type]
-            permission_mode="bypassPermissions",  # Allow all tools in review context
-        )
+        # Build base options
+        options_kwargs: dict[str, Any] = {
+            "system_prompt": system_prompt,
+            "allowed_tools": self._config.allowed_tools,
+            "mcp_servers": self._config.mcp_servers,
+            "setting_sources": setting_sources,
+            "cwd": str(self._get_cwd()),
+            "model": self._config.model if self._config.model else None,
+            "max_turns": self._config.timeout_seconds // 10 if self._config.timeout_seconds else None,
+            "hooks": self._hooks,
+            "permission_mode": "bypassPermissions",  # Allow all tools in review context
+        }
+
+        # Only pass agents if explicitly configured (empty dict or None = let SDK auto-discover)
+        if agents:
+            options_kwargs["agents"] = agents
+
+        options = ClaudeAgentOptions(**options_kwargs)  # type: ignore[arg-type]
 
         return options
 
