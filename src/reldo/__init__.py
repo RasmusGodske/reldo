@@ -16,7 +16,9 @@ Example:
     ```
 """
 
-__version__ = "0.3.0"
+from importlib.metadata import version
+
+__version__ = version("reldo")
 
 from .models.ReviewConfig import ReviewConfig
 from .models.ReviewResult import ReviewResult
