@@ -7,6 +7,7 @@ from typing import Any
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 from claude_agent_sdk.types import AgentDefinition
 
+from ..defaults import DEFAULT_SETTING_SOURCES
 from ..models.ReviewConfig import ReviewConfig
 from ..models.ReviewResult import ReviewResult
 from .LoggingService import LoggingService
@@ -43,7 +44,7 @@ class ReviewService:
         # Initialize logging if enabled
         logging_config = config.logging
         if logging_config.get("enabled", True):
-            output_dir = self._get_cwd() / logging_config.get("output_dir", ".reldo/sessions")
+            output_dir = self._get_cwd() / logging_config.get("output_dir", ".reldo")
             verbose = logging_config.get("verbose", False)
             self._logging_service = LoggingService(output_dir=output_dir, verbose=verbose)
 
@@ -101,7 +102,8 @@ class ReviewService:
         - prompt → system_prompt
         - allowed_tools → allowed_tools
         - mcp_servers → mcp_servers
-        - agents → agents (with prompt files loaded)
+        - setting_sources → setting_sources (defaults to ['project'] for .claude/agents/)
+        - agents → agents (with prompt files loaded, merged with discovered agents)
         - cwd → cwd
         - model → model
         - hooks → hooks
@@ -115,10 +117,16 @@ class ReviewService:
         system_prompt = self._load_orchestrator_prompt()
         agents = self._load_agents()
 
+        # Use configured setting_sources or default to ['project'] for .claude/agents/ discovery
+        setting_sources = self._config.setting_sources
+        if setting_sources is None:
+            setting_sources = DEFAULT_SETTING_SOURCES
+
         options = ClaudeAgentOptions(
             system_prompt=system_prompt,
             allowed_tools=self._config.allowed_tools,
             mcp_servers=self._config.mcp_servers,
+            setting_sources=setting_sources,  # type: ignore[arg-type]
             agents=agents,
             cwd=str(self._get_cwd()),
             model=self._config.model if self._config.model else None,

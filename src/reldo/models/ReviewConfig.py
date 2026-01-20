@@ -19,7 +19,8 @@ class ReviewConfig:
         prompt: Orchestrator prompt (path to file or inline string).
         allowed_tools: Tools available to the orchestrator.
         mcp_servers: MCP server configurations.
-        agents: Sub-agent definitions.
+        agents: Sub-agent definitions (merged with discovered agents).
+        setting_sources: Where to load agent/settings from (default: ['project']).
         output_schema: JSON schema for structured output (optional).
         cwd: Working directory.
         timeout_seconds: Maximum review duration.
@@ -33,6 +34,7 @@ class ReviewConfig:
     )
     mcp_servers: dict[str, Any] = field(default_factory=dict)
     agents: dict[str, dict[str, Any]] = field(default_factory=dict)
+    setting_sources: list[str] | None = None
     output_schema: dict[str, Any] | None = None
     cwd: Path | str = field(default_factory=Path.cwd)
     timeout_seconds: int = 180
@@ -40,7 +42,7 @@ class ReviewConfig:
     logging: dict[str, Any] = field(
         default_factory=lambda: {
             "enabled": True,
-            "output_dir": ".reldo/sessions",
+            "output_dir": ".reldo",
             "verbose": False,
         }
     )
@@ -100,7 +102,7 @@ class ReviewConfig:
         agents = substitute_variables(data.get("agents", {}), cwd)
 
         # Build logging config with defaults
-        default_logging = {"enabled": True, "output_dir": ".reldo/sessions", "verbose": False}
+        default_logging = {"enabled": True, "output_dir": ".reldo", "verbose": False}
         logging_config = {**default_logging, **data.get("logging", {})}
 
         return cls(
@@ -108,6 +110,7 @@ class ReviewConfig:
             allowed_tools=data.get("allowed_tools", ["Read", "Glob", "Grep", "Bash", "Task"]),
             mcp_servers=mcp_servers,
             agents=agents,
+            setting_sources=data.get("setting_sources"),
             output_schema=data.get("output_schema"),
             cwd=cwd,
             timeout_seconds=data.get("timeout_seconds", 180),

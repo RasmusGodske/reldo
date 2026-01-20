@@ -80,7 +80,7 @@ class TestReviewConfig:
 
         # Should have default enabled and output_dir, plus our override
         assert config.logging["enabled"] is True
-        assert config.logging["output_dir"] == ".reldo/sessions"
+        assert config.logging["output_dir"] == ".reldo"
         assert config.logging["verbose"] is True
 
     def test_from_file(self) -> None:

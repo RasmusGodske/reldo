@@ -52,29 +52,12 @@ reldo review --prompt "..." --config .claude/reldo.json
 
 ## Configuration
 
-Create `.claude/reldo.json`:
+Create `.reldo/settings.json`:
 
 ```json
 {
-  "prompt": ".claude/reldo/orchestrator.md",
+  "prompt": ".reldo/orchestrator.md",
   "allowed_tools": ["Read", "Glob", "Grep", "Bash", "Task"],
-  "mcp_servers": {
-    "my-server": {
-      "command": "node",
-      "args": ["./mcp-server.js"]
-    }
-  },
-  "agents": {
-    "backend-reviewer": {
-      "description": "Reviews PHP/Laravel code",
-      "prompt": ".claude/reldo/agents/backend-reviewer.md",
-      "tools": ["Read", "Glob", "Grep"]
-    },
-    "frontend-reviewer": {
-      "description": "Reviews Vue/TypeScript code",
-      "prompt": ".claude/reldo/agents/frontend-reviewer.md"
-    }
-  },
   "model": "claude-sonnet-4-20250514",
   "timeout_seconds": 300
 }
@@ -87,45 +70,89 @@ Create `.claude/reldo.json`:
 | `prompt` | string | required | Path to orchestrator prompt file |
 | `allowed_tools` | string[] | `["Read", "Glob", "Grep", "Bash", "Task"]` | Tools available to the orchestrator |
 | `mcp_servers` | object | `{}` | MCP server configurations |
-| `agents` | object | `{}` | Sub-agent definitions |
+| `setting_sources` | string[] | `["project"]` | Where to discover agents from (see [Agent Discovery](#agent-discovery)) |
+| `agents` | object | `{}` | Additional agent definitions (merged with discovered agents) |
 | `model` | string | `"claude-sonnet-4-20250514"` | Claude model to use |
 | `timeout_seconds` | int | `180` | Maximum review duration |
 | `cwd` | string | current directory | Working directory |
 | `logging` | object | `{"enabled": true, ...}` | Logging configuration |
 
-### Agent Definition
+## Agent Discovery
 
-Each agent in the `agents` object has the following properties:
+Reldo automatically discovers agents from your project's `.claude/agents/` directory. This means you can use the **same agents** that Claude Code uses - no duplication needed.
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `description` | string | yes | Description of when to use this agent |
-| `prompt` | string | yes | Path to agent prompt file |
-| `tools` | string[] | no | Tools available to this agent. **If omitted, inherits all tools from the orchestrator** |
-| `model` | string | no | Model override (`"sonnet"`, `"opus"`, `"haiku"`, or `"inherit"`) |
+### How It Works
 
-#### Tool Inheritance
+By default, `setting_sources` is set to `["project"]`, which tells the Claude Agent SDK to load agents from `.claude/agents/`. These agents are immediately available to your review orchestrator.
 
-If you omit the `tools` property from an agent definition, it inherits all tools from the parent orchestrator, including any MCP server tools:
+```
+your-project/
+├── .claude/
+│   └── agents/
+│       ├── backend-reviewer.md      # ← Auto-discovered
+│       ├── frontend-reviewer.md     # ← Auto-discovered
+│       └── architecture-reviewer.md # ← Auto-discovered
+└── .reldo/
+    └── settings.json                # ← No agent config needed!
+```
+
+### Agent File Format
+
+Agents in `.claude/agents/` use markdown with YAML frontmatter:
+
+```markdown
+---
+name: backend-reviewer
+description: Reviews PHP/Laravel code for conventions and patterns
+model: inherit
+---
+
+# Backend Reviewer
+
+You review PHP/Laravel code for best practices...
+```
+
+### Controlling Agent Discovery
+
+The `setting_sources` option controls where agents are loaded from:
+
+| Value | Behavior |
+|-------|----------|
+| `["project"]` (default) | Loads agents from `.claude/agents/` |
+| `["project", "local"]` | Also includes local settings overrides |
+| `["user", "project", "local"]` | Includes user-global agents too |
+| `[]` | Disables auto-discovery (only explicit agents) |
+
+### Merging Explicit Agents
+
+If you define agents in `.reldo/settings.json`, they are **merged** with discovered agents:
 
 ```json
 {
-  "allowed_tools": ["Read", "Glob", "Grep", "Bash", "Task"],
-  "mcp_servers": {
-    "laravel-boost": {
-      "command": "php",
-      "args": ["artisan", "boost:mcp"]
-    }
-  },
+  "prompt": ".reldo/orchestrator.md",
   "agents": {
-    "full-access-reviewer": {
-      "description": "Has access to all orchestrator tools + MCP",
-      "prompt": ".claude/agents/full-reviewer.md"
-    },
-    "limited-reviewer": {
-      "description": "Only has read access",
-      "prompt": ".claude/agents/limited-reviewer.md",
-      "tools": ["Read", "Glob", "Grep"]
+    "reldo-specific-agent": {
+      "description": "An agent only for reldo reviews",
+      "prompt": ".reldo/agents/special.md"
+    }
+  }
+}
+```
+
+Result: Both `.claude/agents/*` AND `reldo-specific-agent` are available.
+
+### Disabling Auto-Discovery
+
+To use **only** explicitly defined agents:
+
+```json
+{
+  "prompt": ".reldo/orchestrator.md",
+  "setting_sources": [],
+  "agents": {
+    "my-reviewer": {
+      "description": "Custom reviewer",
+      "prompt": ".reldo/agents/my-reviewer.md"
     }
   }
 }

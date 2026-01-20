@@ -47,7 +47,7 @@ DEFAULT_CONFIG = {
     "model": "claude-sonnet-4-20250514",
     "logging": {
         "enabled": True,
-        "output_dir": ".reldo/sessions",
+        "output_dir": ".reldo",
         "verbose": False,
     },
 }
@@ -63,5 +63,9 @@ DEFAULT_CONFIG_PATH = ".reldo/settings.json"
 # Default orchestrator prompt file path (checked before using embedded default)
 DEFAULT_ORCHESTRATOR_PATH = ".reldo/orchestrator.md"
 
-# Default agents directory
+# Default agents directory (legacy - prefer .claude/agents via setting_sources)
 DEFAULT_AGENTS_DIR = ".reldo/agents"
+
+# Default setting_sources - enables automatic discovery of agents from .claude/agents/
+# See: https://docs.anthropic.com/en/docs/claude-code/agents
+DEFAULT_SETTING_SOURCES: list[str] = ["project"]
