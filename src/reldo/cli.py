@@ -279,6 +279,10 @@ async def run_review(args: argparse.Namespace) -> int:
             logging=logging_config,
         )
 
+        # Show startup message (unless JSON output)
+        if not args.json_output:
+            print(f"Starting review with {config.model}...", file=sys.stderr)
+
         # Run review
         reldo = Reldo(config=config)
         result = await reldo.review(prompt=prompt)
@@ -286,6 +290,11 @@ async def run_review(args: argparse.Namespace) -> int:
         # Output result
         output = format_result(result, args.json_output)
         print(output)
+
+        # Show completion message with duration (unless JSON output)
+        if not args.json_output:
+            duration_secs = result.duration_ms / 1000
+            print(f"\nCompleted in {duration_secs:.1f}s", file=sys.stderr)
 
         # Check exit code if requested
         if args.exit_code and not check_review_passed(result):

@@ -1,6 +1,6 @@
 [project]
 name = "reldo"
-version = "0.4.2"
+version = "0.4.3"
 description = "Claude-powered code review orchestrator that coordinates specialized review agents"
 readme = "README.md"
 requires-python = ">=3.11"
