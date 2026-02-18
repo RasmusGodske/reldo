@@ -156,11 +156,11 @@ class TestReldoStreaming:
 
     @pytest.mark.asyncio
     async def test_review_passes_on_text_to_service(self) -> None:
-        """Test that on_text callback is forwarded to ReviewService."""
+        """Test that on_text callback receives the final result."""
         streamed: list[str] = []
 
-        mock_text = MockMessage(content=[MockTextBlock("Streaming chunk")])
-        mock_result = MockResultMessage(result="Done")
+        mock_text = MockMessage(content=[MockTextBlock("Intermediate")])
+        mock_result = MockResultMessage(result="Final review output")
 
         async def mock_query_gen() -> AsyncIterator[Any]:
             yield mock_text
@@ -172,7 +172,8 @@ class TestReldoStreaming:
         with patch.object(review_service_module, "query", return_value=mock_query_gen()):
             await reldo.review("Review this", on_text=streamed.append)
 
-        assert streamed == ["Streaming chunk"]
+        # Only the final result, not intermediate messages
+        assert streamed == ["Final review output"]
 
     @pytest.mark.asyncio
     async def test_review_works_without_on_text(self) -> None:

@@ -167,8 +167,9 @@ class ReviewService:
 
         Args:
             prompt: The review prompt (what to review).
-            on_text: Optional callback invoked with each text chunk as it arrives.
-                     Use for streaming output to the terminal.
+            on_text: Optional callback invoked with the final result text once available.
+                     Intermediate agent messages are NOT streamed — only the final
+                     review output is passed to this callback.
 
         Returns:
             ReviewResult with the review outcome.
@@ -197,12 +198,10 @@ class ReviewService:
             if hasattr(message, "session_id") and hasattr(message, "usage"):
                 result_message = message  # type: ignore[assignment]
             elif hasattr(message, "content"):
-                # Extract text from message content
+                # Extract text from message content (for fallback if no ResultMessage)
                 for block in getattr(message, "content", []):
                     if hasattr(block, "text"):
                         text_parts.append(block.text)
-                        if on_text:
-                            on_text(block.text)
 
         # Calculate duration
         duration_ms = int((time.time() - start_time) * 1000)
@@ -225,6 +224,10 @@ class ReviewService:
                 text="\n".join(text_parts),
                 duration_ms=duration_ms,
             )
+
+        # Stream the final result text if callback provided
+        if on_text:
+            on_text(result.text)
 
         # Save logging data if enabled
         if self._logging_service and session_id:

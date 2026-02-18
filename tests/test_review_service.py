@@ -216,7 +216,7 @@ class TestReviewServiceAsync:
 
 
 class TestReviewServiceStreaming:
-    """Tests for on_text streaming callback."""
+    """Tests for on_text callback."""
 
     def setup_method(self) -> None:
         """Set up test fixtures."""
@@ -227,10 +227,10 @@ class TestReviewServiceStreaming:
         )
 
     @pytest.mark.asyncio
-    async def test_on_text_called_for_each_block(self) -> None:
-        """Test that on_text is called for each text block."""
-        mock_text1 = MockMessage(content=[MockTextBlock("Part 1")])
-        mock_text2 = MockMessage(content=[MockTextBlock("Part 2")])
+    async def test_on_text_called_with_final_result(self) -> None:
+        """Test that on_text is called once with the final result text."""
+        mock_text1 = MockMessage(content=[MockTextBlock("Intermediate 1")])
+        mock_text2 = MockMessage(content=[MockTextBlock("Intermediate 2")])
         mock_result = MockResultMessage(result="Final result")
 
         streamed: list[str] = []
@@ -244,7 +244,8 @@ class TestReviewServiceStreaming:
             service = ReviewService(self.config)
             await service.review("Review", on_text=streamed.append)
 
-        assert streamed == ["Part 1", "Part 2"]
+        # Only the final result, not intermediate messages
+        assert streamed == ["Final result"]
 
     @pytest.mark.asyncio
     async def test_on_text_not_called_without_callback(self) -> None:
@@ -263,20 +264,20 @@ class TestReviewServiceStreaming:
         assert result.text == "Done"
 
     @pytest.mark.asyncio
-    async def test_on_text_not_called_for_result_message(self) -> None:
-        """Test that on_text is not called for ResultMessage."""
-        mock_result = MockResultMessage(result="Final only")
+    async def test_on_text_with_fallback_result(self) -> None:
+        """Test that on_text receives fallback text when no ResultMessage."""
+        mock_text = MockMessage(content=[MockTextBlock("Fallback output")])
 
         streamed: list[str] = []
 
         async def mock_query_gen() -> AsyncIterator[Any]:
-            yield mock_result
+            yield mock_text
 
         with patch.object(review_service_module, "query", return_value=mock_query_gen()):
             service = ReviewService(self.config)
             await service.review("Review", on_text=streamed.append)
 
-        assert streamed == []
+        assert streamed == ["Fallback output"]
 
 
 class TestReviewServiceIntegration:
