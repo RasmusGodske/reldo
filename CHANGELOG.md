@@ -5,6 +5,16 @@ All notable changes to Reldo will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-02-18
+
+### Added
+
+- **Streaming output** - CLI now streams text to stdout as the review progresses instead of waiting until completion
+  - New `on_text` callback parameter on `Reldo.review()` and `ReviewService.review()` for programmatic streaming
+  - CLI passes a stdout writer callback in non-JSON mode, so users see output in real-time
+  - JSON mode (`--json`) still buffers and outputs the complete result at the end
+  - Falls back to printing the full result if no text was streamed (e.g. result came only from `ResultMessage.result`)
+
 ## [0.1.0] - 2026-01-19
 
 ### Added

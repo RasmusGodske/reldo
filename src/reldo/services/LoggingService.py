@@ -88,10 +88,7 @@ class LoggingService:
 
         # Save session.json
         session_file = session_dir / "session.json"
-        session_file.write_text(
-            json.dumps(session_data, indent=2, default=str),
-            encoding="utf-8"
-        )
+        session_file.write_text(json.dumps(session_data, indent=2, default=str), encoding="utf-8")
 
         return session_id
 
@@ -132,9 +129,7 @@ class LoggingService:
         claude_dir = Path.home() / ".claude" / "projects" / project_hash
         return str(claude_dir / f"{sdk_session_id}.jsonl")
 
-    def save_sdk_transcript_reference(
-        self, session_id: str, sdk_session_id: str, cwd: str
-    ) -> None:
+    def save_sdk_transcript_reference(self, session_id: str, sdk_session_id: str, cwd: str) -> None:
         """Update session.json with a reference to the SDK's transcript.
 
         Args:
@@ -154,10 +149,7 @@ class LoggingService:
         session_data["sdk_transcript_path"] = sdk_transcript_path
 
         # Write updated session.json
-        session_file.write_text(
-            json.dumps(session_data, indent=2, default=str),
-            encoding="utf-8"
-        )
+        session_file.write_text(json.dumps(session_data, indent=2, default=str), encoding="utf-8")
 
     def save_result(self, session_id: str, result: ReviewResult) -> None:
         """Save the review result.
@@ -182,10 +174,7 @@ class LoggingService:
 
         # Save result.json
         result_file = session_dir / "result.json"
-        result_file.write_text(
-            json.dumps(result_data, indent=2, default=str),
-            encoding="utf-8"
-        )
+        result_file.write_text(json.dumps(result_data, indent=2, default=str), encoding="utf-8")
 
     def _format_block(self, block: Any) -> str:
         """Format a single content block for logging.
@@ -218,9 +207,7 @@ class LoggingService:
             content = getattr(block, "content", "")
             # Content might be a list or string
             if isinstance(content, list):
-                content_str = "\n".join(
-                    getattr(c, "text", str(c)) for c in content
-                )
+                content_str = "\n".join(getattr(c, "text", str(c)) for c in content)
             else:
                 content_str = str(content)
             # Truncate very long results

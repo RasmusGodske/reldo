@@ -283,13 +283,29 @@ async def run_review(args: argparse.Namespace) -> int:
         if not args.json_output:
             print(f"Starting review with {config.model}...", file=sys.stderr)
 
+        # Set up streaming callback for non-JSON output
+        streamed = False
+
+        def _stream_text(text: str) -> None:
+            nonlocal streamed
+            sys.stdout.write(text)
+            sys.stdout.flush()
+            streamed = True
+
+        on_text = _stream_text if not args.json_output else None
+
         # Run review
         reldo = Reldo(config=config)
-        result = await reldo.review(prompt=prompt)
+        result = await reldo.review(prompt=prompt, on_text=on_text)
 
         # Output result
-        output = format_result(result, args.json_output)
-        print(output)
+        if args.json_output:
+            output = format_result(result, args.json_output)
+            print(output)
+        elif not streamed:
+            # Fallback: print full result if nothing was streamed
+            # (e.g. result came only from ResultMessage.result)
+            print(result.text)
 
         # Show completion message with duration (unless JSON output)
         if not args.json_output:
@@ -375,7 +391,7 @@ def run_init(args: argparse.Namespace) -> int:
         print("\nNext steps:")
         print("  1. Customize .reldo/orchestrator.md with your review guidelines")
         print("  2. Add agent prompts to .reldo/agents/ if needed")
-        print("  3. Run: reldo review \"Review my changes\"")
+        print('  3. Run: reldo review "Review my changes"')
 
         return 0
 

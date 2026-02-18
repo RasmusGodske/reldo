@@ -1,5 +1,6 @@
 """Main Reldo class - the public API."""
 
+from collections.abc import Callable
 from typing import Any
 
 from .models.ReviewConfig import ReviewConfig
@@ -42,12 +43,16 @@ class Reldo:
         self._config = config
         self._service = ReviewService(config=config, hooks=hooks)
 
-    async def review(self, prompt: str) -> ReviewResult:
+    async def review(
+        self, prompt: str, on_text: Callable[[str], None] | None = None
+    ) -> ReviewResult:
         """Run a code review.
 
         Args:
             prompt: The review prompt describing what to review.
                    You construct the full prompt - Reldo doesn't impose structure.
+            on_text: Optional callback invoked with each text chunk as it arrives.
+                     Use for streaming output to the terminal.
 
         Returns:
             ReviewResult with the review outcome.
@@ -59,4 +64,4 @@ class Reldo:
             )
             ```
         """
-        return await self._service.review(prompt=prompt)
+        return await self._service.review(prompt=prompt, on_text=on_text)

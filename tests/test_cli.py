@@ -309,6 +309,64 @@ class TestRunReview:
 
             assert exit_code == 1
 
+    @pytest.mark.asyncio
+    async def test_run_review_passes_on_text_in_text_mode(self) -> None:
+        """Test that non-JSON mode passes on_text callback."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.json"
+            config_file.write_text('{"prompt": "Test"}', encoding="utf-8")
+
+            args = MagicMock()
+            args.prompt = "Review this"
+            args.config = str(config_file)
+            args.cwd = tmpdir
+            args.json_output = False
+            args.verbose = False
+            args.no_log = True
+            args.exit_code = False
+
+            mock_result = ReviewResult(text="PASS")
+
+            with patch("reldo.cli.Reldo") as MockReldo:
+                mock_instance = MagicMock()
+                mock_instance.review = AsyncMock(return_value=mock_result)
+                MockReldo.return_value = mock_instance
+
+                await run_review(args)
+
+                # Verify on_text was passed (not None)
+                call_kwargs = mock_instance.review.call_args
+                assert call_kwargs.kwargs.get("on_text") is not None
+
+    @pytest.mark.asyncio
+    async def test_run_review_no_on_text_in_json_mode(self) -> None:
+        """Test that JSON mode does not pass on_text callback."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.json"
+            config_file.write_text('{"prompt": "Test"}', encoding="utf-8")
+
+            args = MagicMock()
+            args.prompt = "Review this"
+            args.config = str(config_file)
+            args.cwd = tmpdir
+            args.json_output = True
+            args.verbose = False
+            args.no_log = True
+            args.exit_code = False
+
+            mock_result = ReviewResult(text="PASS")
+
+            with patch("reldo.cli.Reldo") as MockReldo:
+                mock_instance = MagicMock()
+                mock_instance.review = AsyncMock(return_value=mock_result)
+                MockReldo.return_value = mock_instance
+
+                await run_review(args)
+
+                # Verify on_text was None
+                call_kwargs = mock_instance.review.call_args
+                assert call_kwargs.kwargs.get("on_text") is None
+
 
 class TestCLIHelp:
     """Tests for CLI help output."""

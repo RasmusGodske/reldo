@@ -1,6 +1,7 @@
 """Core review service that orchestrates Claude Agent SDK calls."""
 
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -159,11 +160,15 @@ class ReviewService:
             "cwd": str(self._config.cwd),
         }
 
-    async def review(self, prompt: str) -> ReviewResult:
+    async def review(
+        self, prompt: str, on_text: Callable[[str], None] | None = None
+    ) -> ReviewResult:
         """Run a code review.
 
         Args:
             prompt: The review prompt (what to review).
+            on_text: Optional callback invoked with each text chunk as it arrives.
+                     Use for streaming output to the terminal.
 
         Returns:
             ReviewResult with the review outcome.
@@ -175,8 +180,7 @@ class ReviewService:
         session_id: str | None = None
         if self._logging_service:
             session_id = self._logging_service.start_session(
-                prompt=prompt,
-                config=self._get_config_snapshot()
+                prompt=prompt, config=self._get_config_snapshot()
             )
 
         # Collect all text output and messages for transcript
@@ -197,6 +201,8 @@ class ReviewService:
                 for block in getattr(message, "content", []):
                     if hasattr(block, "text"):
                         text_parts.append(block.text)
+                        if on_text:
+                            on_text(block.text)
 
         # Calculate duration
         duration_ms = int((time.time() - start_time) * 1000)

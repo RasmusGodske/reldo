@@ -151,6 +151,46 @@ class TestReldoReview:
         assert captured_prompts[0] == "Review this specific file"
 
 
+class TestReldoStreaming:
+    """Tests for Reldo.review() on_text streaming."""
+
+    @pytest.mark.asyncio
+    async def test_review_passes_on_text_to_service(self) -> None:
+        """Test that on_text callback is forwarded to ReviewService."""
+        streamed: list[str] = []
+
+        mock_text = MockMessage(content=[MockTextBlock("Streaming chunk")])
+        mock_result = MockResultMessage(result="Done")
+
+        async def mock_query_gen() -> AsyncIterator[Any]:
+            yield mock_text
+            yield mock_result
+
+        config = ReviewConfig(prompt="You are a reviewer")
+        reldo = Reldo(config=config)
+
+        with patch.object(review_service_module, "query", return_value=mock_query_gen()):
+            await reldo.review("Review this", on_text=streamed.append)
+
+        assert streamed == ["Streaming chunk"]
+
+    @pytest.mark.asyncio
+    async def test_review_works_without_on_text(self) -> None:
+        """Test that review works when on_text is not provided."""
+        mock_result = MockResultMessage(result="Review complete. PASS.")
+
+        async def mock_query_gen() -> AsyncIterator[Any]:
+            yield mock_result
+
+        config = ReviewConfig(prompt="You are a reviewer")
+        reldo = Reldo(config=config)
+
+        with patch.object(review_service_module, "query", return_value=mock_query_gen()):
+            result = await reldo.review("Review this")
+
+        assert result.text == "Review complete. PASS."
+
+
 class TestReldoIntegration:
     """Integration-style tests for full Reldo flow."""
 

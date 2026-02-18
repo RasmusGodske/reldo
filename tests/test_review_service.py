@@ -215,6 +215,70 @@ class TestReviewServiceAsync:
         assert "Part 2" in result.text
 
 
+class TestReviewServiceStreaming:
+    """Tests for on_text streaming callback."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.config = ReviewConfig(
+            prompt="You are a code reviewer",
+            allowed_tools=["Read", "Glob", "Grep"],
+            cwd=Path("/tmp/test-project"),
+        )
+
+    @pytest.mark.asyncio
+    async def test_on_text_called_for_each_block(self) -> None:
+        """Test that on_text is called for each text block."""
+        mock_text1 = MockMessage(content=[MockTextBlock("Part 1")])
+        mock_text2 = MockMessage(content=[MockTextBlock("Part 2")])
+        mock_result = MockResultMessage(result="Final result")
+
+        streamed: list[str] = []
+
+        async def mock_query_gen() -> AsyncIterator[Any]:
+            yield mock_text1
+            yield mock_text2
+            yield mock_result
+
+        with patch.object(review_service_module, "query", return_value=mock_query_gen()):
+            service = ReviewService(self.config)
+            await service.review("Review", on_text=streamed.append)
+
+        assert streamed == ["Part 1", "Part 2"]
+
+    @pytest.mark.asyncio
+    async def test_on_text_not_called_without_callback(self) -> None:
+        """Test that review works fine without on_text."""
+        mock_text = MockMessage(content=[MockTextBlock("Output")])
+        mock_result = MockResultMessage(result="Done")
+
+        async def mock_query_gen() -> AsyncIterator[Any]:
+            yield mock_text
+            yield mock_result
+
+        with patch.object(review_service_module, "query", return_value=mock_query_gen()):
+            service = ReviewService(self.config)
+            result = await service.review("Review")
+
+        assert result.text == "Done"
+
+    @pytest.mark.asyncio
+    async def test_on_text_not_called_for_result_message(self) -> None:
+        """Test that on_text is not called for ResultMessage."""
+        mock_result = MockResultMessage(result="Final only")
+
+        streamed: list[str] = []
+
+        async def mock_query_gen() -> AsyncIterator[Any]:
+            yield mock_result
+
+        with patch.object(review_service_module, "query", return_value=mock_query_gen()):
+            service = ReviewService(self.config)
+            await service.review("Review", on_text=streamed.append)
+
+        assert streamed == []
+
+
 class TestReviewServiceIntegration:
     """Integration-style tests for ReviewService (still mocked)."""
 
