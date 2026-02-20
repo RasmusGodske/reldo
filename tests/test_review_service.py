@@ -84,11 +84,12 @@ class TestReviewService:
     def test_build_agent_options_inline_prompt(self) -> None:
         """Test _build_agent_options with inline prompt."""
         service = ReviewService(self.config)
-        options = service._build_agent_options()
+        isolated_cwd = Path(tempfile.mkdtemp(prefix="reldo-test-"))
+        options = service._build_agent_options(isolated_cwd)
 
-        assert options.system_prompt == "You are a code reviewer"
+        assert "You are a code reviewer" in options.system_prompt
         assert options.allowed_tools == ["Read", "Glob", "Grep"]
-        assert options.cwd == "/tmp/test-project"
+        assert options.cwd == str(isolated_cwd)
         assert options.permission_mode == "bypassPermissions"
 
     def test_build_agent_options_file_prompt(self) -> None:
@@ -102,7 +103,8 @@ class TestReviewService:
                 cwd=tmpdir,
             )
             service = ReviewService(config)
-            options = service._build_agent_options()
+            isolated_cwd = Path(tempfile.mkdtemp(prefix="reldo-test-"))
+            options = service._build_agent_options(isolated_cwd)
 
             assert "You review code" in options.system_prompt
 
@@ -118,7 +120,8 @@ class TestReviewService:
             }
         )
         service = ReviewService(config)
-        options = service._build_agent_options()
+        isolated_cwd = Path(tempfile.mkdtemp(prefix="reldo-test-"))
+        options = service._build_agent_options(isolated_cwd)
 
         assert "test-server" in options.mcp_servers
 
@@ -129,7 +132,8 @@ class TestReviewService:
             model="claude-opus-4-20250514"
         )
         service = ReviewService(config)
-        options = service._build_agent_options()
+        isolated_cwd = Path(tempfile.mkdtemp(prefix="reldo-test-"))
+        options = service._build_agent_options(isolated_cwd)
 
         assert options.model == "claude-opus-4-20250514"
 
@@ -137,7 +141,8 @@ class TestReviewService:
         """Test that hooks are passed through."""
         hooks = {"PreToolUse": [MagicMock()]}
         service = ReviewService(self.config, hooks=hooks)
-        options = service._build_agent_options()
+        isolated_cwd = Path(tempfile.mkdtemp(prefix="reldo-test-"))
+        options = service._build_agent_options(isolated_cwd)
 
         assert options.hooks == hooks
 
