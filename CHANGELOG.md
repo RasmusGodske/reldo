@@ -5,6 +5,16 @@ All notable changes to Reldo will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-02-20
+
+### Fixed
+
+- **Fix invisible output when run from Claude Code's Bash tool** - The inner Claude Code CLI subprocess was deleting the parent's task output file during initialization, causing all output (including pre-SDK prints) to disappear. Fixed by using an isolated temporary directory as the inner CLI's working directory, with the real project directory added via `--add-dir`.
+
+### Added
+
+- **Lightweight progress reporting** - New `on_progress` callback on `Reldo.review()` emits a handful of status lines (agent connected, turn count, tool calls) so callers can see the review is progressing. CLI outputs these to stderr in non-JSON mode. Uses exponential backoff to stay under 4 lines total.
+
 ## [0.5.1] - 2026-02-18
 
 ### Fixed

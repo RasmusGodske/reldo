@@ -44,7 +44,10 @@ class Reldo:
         self._service = ReviewService(config=config, hooks=hooks)
 
     async def review(
-        self, prompt: str, on_text: Callable[[str], None] | None = None
+        self,
+        prompt: str,
+        on_text: Callable[[str], None] | None = None,
+        on_progress: Callable[[str], None] | None = None,
     ) -> ReviewResult:
         """Run a code review.
 
@@ -53,6 +56,8 @@ class Reldo:
                    You construct the full prompt - Reldo doesn't impose structure.
             on_text: Optional callback invoked with each text chunk as it arrives.
                      Use for streaming output to the terminal.
+            on_progress: Optional callback invoked with short status strings as the
+                         review progresses. Emits at most a handful of lines.
 
         Returns:
             ReviewResult with the review outcome.
@@ -64,4 +69,6 @@ class Reldo:
             )
             ```
         """
-        return await self._service.review(prompt=prompt, on_text=on_text)
+        return await self._service.review(
+            prompt=prompt, on_text=on_text, on_progress=on_progress
+        )

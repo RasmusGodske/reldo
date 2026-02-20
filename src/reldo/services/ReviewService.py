@@ -1,5 +1,7 @@
 """Core review service that orchestrates Claude Agent SDK calls."""
 
+import shutil
+import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -96,7 +98,49 @@ class ReviewService:
 
         return agents if agents else None
 
-    def _build_agent_options(self) -> ClaudeAgentOptions:
+    def _create_isolated_cwd(self) -> Path:
+        """Create an isolated temporary working directory for the inner Claude Code subprocess.
+
+        Background — the problem:
+            Claude Code's Bash tool captures command output by writing it to a temp
+            file at ``/tmp/claude-{uid}/{project-path}/tasks/{id}.output``. It reads
+            this file **by path** after the subprocess exits.
+
+            The Claude Agent SDK spawns an inner Claude Code CLI subprocess. During
+            initialization (~400 ms after connect), the inner CLI scans
+            ``/tmp/claude-{uid}/{project-path}/tasks/`` and deletes stale task files.
+            If the inner CLI shares the same working directory as the parent, it
+            deletes the parent's **active** output file. The file descriptor stays
+            valid (``st_nlink`` drops to 0 but writes still succeed), so reldo
+            finishes normally — but when the Bash tool tries to read the file by path,
+            it's gone. The parent sees zero output: "Tool ran without output or errors".
+
+        The fix:
+            Use an isolated temp directory as the inner CLI's ``--cwd`` and add the
+            real project directory via ``--add-dir``. The inner CLI now derives a
+            different tasks path (``/tmp/claude-{uid}/{temp-path}/tasks/``) and never
+            touches the parent's output file. The system prompt is prepended with the
+            project path so the inner CLI resolves relative file paths correctly.
+
+        Removal criteria:
+            This workaround can be removed if a future Claude Code version stops
+            cleaning up sibling task files on startup, or if the Bash tool switches
+            from path-based reads to fd-based reads.
+
+        Returns:
+            Path to the isolated temporary directory.
+        """
+        return Path(tempfile.mkdtemp(prefix="reldo-"))
+
+    def _cleanup_isolated_cwd(self, isolated_cwd: Path) -> None:
+        """Remove the isolated temporary working directory.
+
+        Args:
+            isolated_cwd: Path to the temp directory to remove.
+        """
+        shutil.rmtree(isolated_cwd, ignore_errors=True)
+
+    def _build_agent_options(self, isolated_cwd: Path) -> ClaudeAgentOptions:
         """Build ClaudeAgentOptions from config.
 
         Maps ReviewConfig properties to SDK options:
@@ -105,12 +149,13 @@ class ReviewService:
         - mcp_servers → mcp_servers
         - setting_sources → setting_sources (defaults to ['project'] for .claude/agents/)
         - agents → agents (with prompt files loaded, merged with discovered agents)
-        - cwd → cwd
+        - cwd → isolated temp dir (to prevent task file cleanup conflicts)
+        - add_dirs → [actual project dir] (so the inner CLI can access project files)
         - model → model
         - hooks → hooks
 
-        Note: The output_schema is NOT passed here - it would need
-        to be handled differently in the SDK (currently not directly supported).
+        Args:
+            isolated_cwd: Isolated temp directory for the inner Claude Code subprocess.
 
         Returns:
             ClaudeAgentOptions instance configured from self._config.
@@ -123,13 +168,24 @@ class ReviewService:
         if setting_sources is None:
             setting_sources = DEFAULT_SETTING_SOURCES
 
+        project_dir = str(self._get_cwd())
+
+        # Prepend project directory context to system prompt so the inner CLI
+        # resolves file paths correctly (since CWD is the isolated temp dir)
+        system_prompt = (
+            f"Your primary working directory is: {project_dir}\n"
+            f"Always resolve file paths relative to {project_dir}.\n\n"
+            + system_prompt
+        )
+
         # Build base options
         options_kwargs: dict[str, Any] = {
             "system_prompt": system_prompt,
             "allowed_tools": self._config.allowed_tools,
             "mcp_servers": self._config.mcp_servers,
             "setting_sources": setting_sources,
-            "cwd": str(self._get_cwd()),
+            "cwd": str(isolated_cwd),
+            "add_dirs": [project_dir],
             "model": self._config.model if self._config.model else None,
             "max_turns": (
                 self._config.timeout_seconds // 10 if self._config.timeout_seconds else None
@@ -161,21 +217,65 @@ class ReviewService:
         }
 
     async def review(
-        self, prompt: str, on_text: Callable[[str], None] | None = None
+        self,
+        prompt: str,
+        on_text: Callable[[str], None] | None = None,
+        on_progress: Callable[[str], None] | None = None,
     ) -> ReviewResult:
         """Run a code review.
+
+        Uses an isolated temporary directory as the inner Claude Code CLI's working
+        directory to prevent a task file cleanup conflict. Without this, the inner
+        CLI deletes the parent's Bash tool output file during initialization,
+        causing the parent to capture zero output. See ``_create_isolated_cwd``
+        for the full explanation.
 
         Args:
             prompt: The review prompt (what to review).
             on_text: Optional callback invoked with the final result text once available.
                      Intermediate agent messages are NOT streamed — only the final
                      review output is passed to this callback.
+            on_progress: Optional callback invoked with short status strings as the
+                         review progresses. Intended for lightweight progress reporting
+                         (e.g., writing to stderr) — emits at most a handful of lines.
 
         Returns:
             ReviewResult with the review outcome.
         """
         start_time = time.time()
-        options = self._build_agent_options()
+        isolated_cwd = self._create_isolated_cwd()
+        try:
+            return await self._run_review(
+                prompt=prompt,
+                on_text=on_text,
+                on_progress=on_progress,
+                isolated_cwd=isolated_cwd,
+                start_time=start_time,
+            )
+        finally:
+            self._cleanup_isolated_cwd(isolated_cwd)
+
+    async def _run_review(
+        self,
+        prompt: str,
+        on_text: Callable[[str], None] | None,
+        on_progress: Callable[[str], None] | None,
+        isolated_cwd: Path,
+        start_time: float,
+    ) -> ReviewResult:
+        """Internal review implementation.
+
+        Args:
+            prompt: The review prompt.
+            on_text: Optional text callback.
+            on_progress: Optional progress callback.
+            isolated_cwd: Isolated temp directory for the inner CLI.
+            start_time: Review start timestamp.
+
+        Returns:
+            ReviewResult with the review outcome.
+        """
+        options = self._build_agent_options(isolated_cwd)
 
         # Start logging session if enabled
         session_id: str | None = None
@@ -189,6 +289,17 @@ class ReviewService:
         all_messages: list[Any] = []
         result_message: ResultMessage | None = None
 
+        # Progress tracking — emit a few status lines without flooding output.
+        # At most: 1 "connected" line + up to 3 periodic turn updates.
+        got_first_message = False
+        tool_call_count = 0
+        last_tool_name = ""
+        agent_turn_count = 0
+        progress_updates_emitted = 0
+        max_progress_updates = 3
+        # Emit at turns 3, 6, 12 (doubling interval to stay under the cap)
+        next_progress_turn = 3
+
         # Stream through the query results
         async for message in query(prompt=prompt, options=options):
             all_messages.append(message)
@@ -198,6 +309,33 @@ class ReviewService:
             if hasattr(message, "session_id") and hasattr(message, "usage"):
                 result_message = message  # type: ignore[assignment]
             elif hasattr(message, "content"):
+                # Track progress milestones
+                if on_progress:
+                    if not got_first_message:
+                        got_first_message = True
+                        on_progress("Agent connected, reviewing...")
+
+                    for block in getattr(message, "content", []):
+                        if hasattr(block, "name"):
+                            tool_call_count += 1
+                            last_tool_name = block.name
+
+                    # Count agent turns (assistant messages that aren't tool-result follow-ups)
+                    if not getattr(message, "parent_tool_use_id", None):
+                        agent_turn_count += 1
+
+                        if (
+                            agent_turn_count >= next_progress_turn
+                            and progress_updates_emitted < max_progress_updates
+                            and tool_call_count > 0
+                        ):
+                            on_progress(
+                                f"Still working... turn {agent_turn_count}, "
+                                f"{tool_call_count} tool calls (last: {last_tool_name})"
+                            )
+                            progress_updates_emitted += 1
+                            next_progress_turn *= 2  # 3 → 6 → 12
+
                 # Extract text from message content (for fallback if no ResultMessage)
                 for block in getattr(message, "content", []):
                     if hasattr(block, "text"):

@@ -292,11 +292,15 @@ async def run_review(args: argparse.Namespace) -> int:
             sys.stdout.flush()
             streamed = True
 
+        def _stream_progress(status: str) -> None:
+            print(status, file=sys.stderr, flush=True)
+
         on_text = _stream_text if not args.json_output else None
+        on_progress = _stream_progress if not args.json_output else None
 
         # Run review
         reldo = Reldo(config=config)
-        result = await reldo.review(prompt=prompt, on_text=on_text)
+        result = await reldo.review(prompt=prompt, on_text=on_text, on_progress=on_progress)
 
         # Output result
         if args.json_output:
